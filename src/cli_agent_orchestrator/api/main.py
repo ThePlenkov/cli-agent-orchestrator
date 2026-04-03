@@ -109,12 +109,46 @@ class CreateFlowRequest(BaseModel):
         return v
 
 
+def _run_headless_configuration() -> None:
+    """Pre-configure all known providers for non-interactive (headless) use.
+
+    Called at server startup when ``--headless`` / ``CAO_HEADLESS=1`` is set.
+    Creates one temporary instance of each provider that implements
+    ``configure_headless`` and invokes it with the current working directory
+    as the workspace path.
+    """
+    from cli_agent_orchestrator.providers.claude_code import ClaudeCodeProvider
+    from cli_agent_orchestrator.providers.codex import CodexProvider
+
+    workspace = Path.cwd()
+    logger.info("Headless mode: pre-configuring providers for workspace %s", workspace)
+
+    headless_providers = [
+        ClaudeCodeProvider("headless", "headless", "headless"),
+        CodexProvider("headless", "headless", "headless"),
+    ]
+    for provider in headless_providers:
+        try:
+            provider.configure_headless(workspace)
+        except Exception as exc:
+            logger.warning(
+                "Headless configuration failed for %s: %s",
+                provider.__class__.__name__,
+                exc,
+            )
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Application lifespan events."""
     logger.info("Starting CLI Agent Orchestrator server...")
     setup_logging()
     init_db()
+
+    # Headless mode: pre-configure known agents for non-interactive use.
+    # Activated by --headless CLI flag (sets CAO_HEADLESS=1) or CAO_HEADLESS env var.
+    if os.environ.get("CAO_HEADLESS"):
+        _run_headless_configuration()
 
     # Run cleanup in background
     asyncio.create_task(asyncio.to_thread(cleanup_old_data))
@@ -836,6 +870,15 @@ def main():
     )
     parser.add_argument("--host", type=str, default=None, help="Server host")
     parser.add_argument("--port", type=int, default=None, help="Server port")
+    parser.add_argument(
+        "--headless",
+        action="store_true",
+        default=False,
+        help=(
+            "Pre-configure known agents for non-interactive use (useful in containers). "
+            "Equivalent to setting CAO_HEADLESS=1."
+        ),
+    )
     args = parser.parse_args()
 
     if args.agents_dir:
@@ -844,6 +887,10 @@ def main():
 
         constants.KIRO_AGENTS_DIR = Path(args.agents_dir)
         logger.info(f"Using agents directory: {args.agents_dir}")
+
+    if args.headless or os.environ.get("CAO_HEADLESS"):
+        os.environ["CAO_HEADLESS"] = "1"
+        logger.info("Headless mode enabled")
 
     host = args.host or SERVER_HOST
     port = args.port or SERVER_PORT

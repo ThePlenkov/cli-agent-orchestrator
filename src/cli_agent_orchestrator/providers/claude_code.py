@@ -333,3 +333,39 @@ class ClaudeCodeProvider(BaseProvider):
     def cleanup(self) -> None:
         """Clean up Claude Code provider."""
         self._initialized = False
+
+    def configure_headless(self, workspace: Path) -> None:
+        """Pre-configure Claude Code for non-interactive (headless) use.
+
+        Writes ``~/.claude/.claude.json`` to mark the first-run onboarding
+        wizard as completed so that Claude Code does not block on interactive
+        prompts when started inside a container or CI environment.
+
+        Args:
+            workspace: The working directory that will be used by the agent
+                (not used by Claude Code's headless config, kept for API
+                consistency).
+        """
+        try:
+            version_output = subprocess.check_output(["claude", "--version"], stderr=subprocess.DEVNULL).decode().strip()
+            version = version_output.split()[0] if version_output else "unknown"
+        except Exception:
+            version = "unknown"
+
+        claude_json = Path.home() / ".claude" / ".claude.json"
+        claude_json.parent.mkdir(parents=True, exist_ok=True)
+        data: dict = {}
+        if claude_json.exists():
+            try:
+                data = json.loads(claude_json.read_text())
+            except Exception:
+                data = {}
+        data.update(
+            {
+                "hasCompletedOnboarding": True,
+                "lastOnboardingVersion": version,
+                "theme": "dark",
+            }
+        )
+        claude_json.write_text(json.dumps(data))
+        logger.info("Claude Code headless config written to %s", claude_json)

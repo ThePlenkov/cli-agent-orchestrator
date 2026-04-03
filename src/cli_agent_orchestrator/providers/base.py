@@ -21,6 +21,7 @@ and output format to reliably detect status changes.
 """
 
 from abc import ABC, abstractmethod
+from pathlib import Path
 from typing import List, Optional
 
 from cli_agent_orchestrator.models.terminal import TerminalStatus
@@ -158,6 +159,18 @@ class BaseProvider(ABC):
         For example, providers with initial prompts can use this to
         distinguish post-init idle (ready for first input) from
         post-task completed.
+        """
+        pass
+
+    def configure_headless(self, workspace: Path) -> None:
+        """Pre-configure the provider for non-interactive (headless) use.
+
+        Override in subclasses to write any config files needed to skip
+        interactive first-run prompts (onboarding wizards, trust dialogs,
+        etc.) so that the agent starts without blocking user interaction.
+
+        Args:
+            workspace: The working directory that will be used by the agent.
         """
         pass
 

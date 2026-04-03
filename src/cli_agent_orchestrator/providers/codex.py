@@ -4,6 +4,7 @@ import logging
 import re
 import shlex
 import time
+from pathlib import Path
 from typing import Optional
 
 from cli_agent_orchestrator.clients.tmux import tmux_client
@@ -489,3 +490,30 @@ class CodexProvider(BaseProvider):
     def cleanup(self) -> None:
         """Clean up Codex CLI provider."""
         self._initialized = False
+
+    def configure_headless(self, workspace: Path) -> None:
+        """Pre-configure Codex CLI for non-interactive (headless) use.
+
+        Writes ``~/.codex/config.toml`` to mark the given workspace as
+        trusted so that Codex does not display a blocking workspace trust
+        prompt on first launch.
+
+        Args:
+            workspace: The working directory that will be used by the agent.
+                The directory is added to the ``[projects]`` section of the
+                Codex config with ``trust_level = "trusted"``.
+        """
+        codex_config = Path.home() / ".codex" / "config.toml"
+        codex_config.parent.mkdir(parents=True, exist_ok=True)
+        section = f'\n[projects."{workspace}"]\ntrust_level = "trusted"\n'
+        # Check for the exact TOML section header to avoid false positives
+        # from paths that share a common prefix (e.g. /app/project vs /app/project-v2).
+        section_header = f'[projects."{workspace}"]'
+        if codex_config.exists():
+            content = codex_config.read_text()
+            if section_header not in content:
+                codex_config.write_text(content + section)
+        else:
+            codex_config.write_text(section)
+        logger.info("Codex headless config written to %s (workspace: %s)", codex_config, workspace)
+
