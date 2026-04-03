@@ -1,5 +1,8 @@
 """Security tests for DNS rebinding protection and host validation."""
 
+import importlib
+import ipaddress
+
 import pytest
 from fastapi.testclient import TestClient
 
@@ -229,14 +232,10 @@ class TestWebSocketHostValidation:
 
     def test_private_networks_cover_docker_bridge(self):
         """172.16.0.0/12 must be in private networks to cover Docker bridge IPs."""
-        import ipaddress
-
         assert ipaddress.ip_network("172.16.0.0/12") in _PRIVATE_NETWORKS
 
     def test_private_networks_cover_rfc1918(self):
         """All three RFC 1918 networks must be present."""
-        import ipaddress
-
         assert ipaddress.ip_network("10.0.0.0/8") in _PRIVATE_NETWORKS
         assert ipaddress.ip_network("192.168.0.0/16") in _PRIVATE_NETWORKS
 
@@ -297,12 +296,10 @@ class TestWebSocketHostValidation:
 
     def test_cao_trusted_hosts_env_var(self, monkeypatch):
         """IPs listed in CAO_TRUSTED_HOSTS env var must be allowed."""
-        import importlib
-
         import cli_agent_orchestrator.api.main as main_module
 
         monkeypatch.setenv("CAO_TRUSTED_HOSTS", "1.2.3.4,5.6.7.8")
-        # Reload the module-level list to pick up the env change
+        # Reload the module-level frozenset to pick up the env change
         importlib.reload(main_module)
         extra = main_module._EXTRA_TRUSTED_HOSTS
         assert "1.2.3.4" in extra

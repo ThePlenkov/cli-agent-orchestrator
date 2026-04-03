@@ -58,9 +58,9 @@ logger = logging.getLogger(__name__)
 
 # WebSocket trusted-host configuration
 # Extra hosts allowed via environment variable (comma-separated IPs/hostnames)
-_EXTRA_TRUSTED_HOSTS = [
+_EXTRA_TRUSTED_HOSTS: frozenset[str] = frozenset(
     h.strip() for h in os.environ.get("CAO_TRUSTED_HOSTS", "").split(",") if h.strip()
-]
+)
 # Default hosts that are always trusted (loopback)
 _DEFAULT_TRUSTED_HOSTS: frozenset[str | None] = frozenset({None, "127.0.0.1", "::1", "localhost"})
 # RFC 1918 private address networks (covers Docker bridge, LAN, VPN ranges)
