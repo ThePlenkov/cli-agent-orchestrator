@@ -80,6 +80,79 @@ class TestCorsOrigins:
 
         assert "http://127.0.0.1:3000" in CORS_ORIGINS
 
+    def test_cors_origins_env_var_adds_extra_origins(self):
+        """Test that CAO_CORS_ORIGINS env var appends extra origins."""
+        import importlib
+        import os
+
+        env_copy = os.environ.copy()
+        env_copy["CAO_CORS_ORIGINS"] = "http://example.com:8080,http://other.local:4000"
+        with patch.dict("os.environ", env_copy, clear=True):
+            import cli_agent_orchestrator.constants as constants_module
+
+            importlib.reload(constants_module)
+            assert any(o == "http://example.com:8080" for o in constants_module.CORS_ORIGINS)
+            assert any(o == "http://other.local:4000" for o in constants_module.CORS_ORIGINS)
+
+    def test_cors_origins_env_var_strips_whitespace(self):
+        """Test that CAO_CORS_ORIGINS entries are stripped of whitespace."""
+        import importlib
+        import os
+
+        env_copy = os.environ.copy()
+        env_copy["CAO_CORS_ORIGINS"] = " http://example.com:8080 , http://other.local:4000 "
+        with patch.dict("os.environ", env_copy, clear=True):
+            import cli_agent_orchestrator.constants as constants_module
+
+            importlib.reload(constants_module)
+            assert any(o == "http://example.com:8080" for o in constants_module.CORS_ORIGINS)
+            assert any(o == "http://other.local:4000" for o in constants_module.CORS_ORIGINS)
+
+    def test_cors_origins_env_var_empty_ignores_blank_entries(self):
+        """Test that blank entries in CAO_CORS_ORIGINS are ignored."""
+        import importlib
+        import os
+
+        env_copy = os.environ.copy()
+        env_copy["CAO_CORS_ORIGINS"] = ",,"
+        with patch.dict("os.environ", env_copy, clear=True):
+            import cli_agent_orchestrator.constants as constants_module
+
+            importlib.reload(constants_module)
+            # Should not add empty strings
+            assert "" not in constants_module.CORS_ORIGINS
+
+    def test_cors_origins_default_includes_no_extra_entries_when_env_var_absent(self):
+        """Test that default CORS_ORIGINS contains only the known defaults when env var is unset."""
+        import importlib
+        import os
+
+        env_copy = os.environ.copy()
+        env_copy.pop("CAO_CORS_ORIGINS", None)
+        env_copy.pop("CAO_API_PORT", None)
+        with patch.dict("os.environ", env_copy, clear=True):
+            import cli_agent_orchestrator.constants as constants_module
+
+            importlib.reload(constants_module)
+            # Default port 9889 origins should be auto-included
+            assert "http://localhost:9889" in constants_module.CORS_ORIGINS
+            assert "http://127.0.0.1:9889" in constants_module.CORS_ORIGINS
+
+    def test_cors_origins_auto_includes_server_port(self):
+        """Test that CAO_API_PORT is auto-added to CORS_ORIGINS."""
+        import importlib
+        import os
+
+        env_copy = os.environ.copy()
+        env_copy["CAO_API_PORT"] = "7777"
+        env_copy.pop("CAO_CORS_ORIGINS", None)
+        with patch.dict("os.environ", env_copy, clear=True):
+            import cli_agent_orchestrator.constants as constants_module
+
+            importlib.reload(constants_module)
+            assert "http://localhost:7777" in constants_module.CORS_ORIGINS
+            assert "http://127.0.0.1:7777" in constants_module.CORS_ORIGINS
+
 
 class TestCaoHomeDir:
     """Tests for CAO home directory constants."""

@@ -96,12 +96,24 @@ SERVER_VERSION = "0.1.0"
 API_BASE_URL = f"http://{SERVER_HOST}:{SERVER_PORT}"
 
 # CORS allowed origins for web-based clients
-CORS_ORIGINS = [
+_DEFAULT_ORIGINS = [
     "http://localhost:3000",
     "http://127.0.0.1:3000",
     "http://localhost:5173",
     "http://127.0.0.1:5173",
 ]
+
+# Allow extra origins via comma-separated CAO_CORS_ORIGINS env var
+_extra_origins = os.environ.get("CAO_CORS_ORIGINS", "")
+CORS_ORIGINS: list[str] = _DEFAULT_ORIGINS + [
+    o.strip() for o in _extra_origins.split(",") if o.strip()
+]
+
+# Auto-include the server's own port so that direct browser access works
+# even when a non-default port is set via CAO_API_PORT.
+for _origin in [f"http://localhost:{SERVER_PORT}", f"http://127.0.0.1:{SERVER_PORT}"]:
+    if _origin not in CORS_ORIGINS:
+        CORS_ORIGINS.append(_origin)
 
 # Allowed Host headers for DNS rebinding protection (CVE mitigation)
 # Only localhost connections permitted - CAO is a local-only service

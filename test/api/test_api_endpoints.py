@@ -816,3 +816,26 @@ class TestMainEntryPoint:
 
             main()
             # No assertion needed beyond no exception — the code path is covered
+
+    def test_main_custom_port_adds_cors_origins(self):
+        """main() rebuilds CORS middleware with port-specific origins for a custom --port."""
+        from fastapi.middleware.cors import CORSMiddleware as _CORSMiddleware
+
+        from cli_agent_orchestrator.api.main import app, main
+
+        custom_port = 18765  # use an unlikely port to avoid state pollution
+        with (
+            patch("argparse.ArgumentParser.parse_args") as mock_args,
+            patch("uvicorn.run"),
+        ):
+            mock_args.return_value = MagicMock(agents_dir=None, host=None, port=custom_port)
+            main()
+
+        # The CORS middleware in user_middleware should have the port-specific origins
+        cors_middleware = next(
+            (m for m in app.user_middleware if m.cls is _CORSMiddleware), None
+        )
+        assert cors_middleware is not None, "CORSMiddleware not found in user_middleware"
+        allow_origins = cors_middleware.kwargs.get("allow_origins", [])
+        assert f"http://localhost:{custom_port}" in allow_origins
+        assert f"http://127.0.0.1:{custom_port}" in allow_origins

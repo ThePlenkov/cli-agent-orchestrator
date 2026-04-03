@@ -847,6 +847,29 @@ def main():
 
     host = args.host or SERVER_HOST
     port = args.port or SERVER_PORT
+
+    # Auto-add port-specific CORS origins when --port is used, so that the
+    # browser can reach the API even on a non-default port.
+    extra_origins = [
+        o
+        for o in [f"http://localhost:{port}", f"http://127.0.0.1:{port}"]
+        if o not in CORS_ORIGINS
+    ]
+    if extra_origins:
+        # Reset the middleware stack so we can modify user_middleware.
+        # In production this is a no-op (stack is built lazily on first
+        # request); in tests it prevents the "Cannot add middleware after an
+        # application has started" error when the app is reused across tests.
+        app.middleware_stack = None
+        app.user_middleware = [m for m in app.user_middleware if m.cls is not CORSMiddleware]
+        app.add_middleware(
+            CORSMiddleware,
+            allow_origins=CORS_ORIGINS + extra_origins,
+            allow_credentials=True,
+            allow_methods=["*"],
+            allow_headers=["*"],
+        )
+
     uvicorn.run(app, host=host, port=port)
 
 
