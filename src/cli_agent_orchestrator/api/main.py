@@ -199,6 +199,10 @@ async def list_providers_endpoint() -> List[Dict]:
         "q_cli": "q",
         "codex": "codex",
     }
+    # Merge binaries from plugin registry
+    from cli_agent_orchestrator.plugins.registry import get_registry
+
+    provider_binaries.update(get_registry().get_binaries())
     result = []
     for provider, binary in provider_binaries.items():
         installed = shutil.which(binary) is not None

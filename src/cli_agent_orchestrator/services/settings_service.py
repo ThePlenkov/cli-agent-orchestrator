@@ -42,21 +42,30 @@ def get_agent_dirs() -> Dict[str, str]:
 
     Returns dict like:
       {"kiro_cli": "/home/user/.kiro/agents", "q_cli": "...", ...}
+
+    Plugin-registered providers are included with their declared agent directories.
+    User-saved directories (from settings.json) take highest precedence.
     """
+    from cli_agent_orchestrator.plugins.registry import get_registry
+
     settings = _load()
     saved = settings.get("agent_dirs", {})
-    # Merge defaults with saved — saved overrides defaults
+    # Merge: built-in defaults < plugin defaults < user-saved
     result = dict(_DEFAULTS)
+    result.update(get_registry().get_agent_dirs())
     result.update(saved)
     return result
 
 
 def set_agent_dirs(dirs: Dict[str, str]) -> Dict[str, str]:
-    """Update agent directories. Only updates providers that are specified."""
+    """Update agent directories. Only updates providers that are registered."""
+    from cli_agent_orchestrator.plugins.registry import get_registry
+
     settings = _load()
     current = settings.get("agent_dirs", {})
+    all_known = {**_DEFAULTS, **get_registry().get_agent_dirs()}
     for provider, path in dirs.items():
-        if provider in _DEFAULTS:
+        if provider in all_known:
             current[provider] = path
     settings["agent_dirs"] = current
     _save(settings)

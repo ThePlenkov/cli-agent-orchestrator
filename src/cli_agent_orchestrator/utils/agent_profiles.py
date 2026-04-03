@@ -98,13 +98,17 @@ def list_agent_profiles() -> List[Dict]:
 
     # 3. Provider-specific directories (from settings)
     agent_dirs = get_agent_dirs()
-    provider_source_labels = {
+    provider_source_labels: Dict[str, str] = {
         "kiro_cli": "kiro",
         "q_cli": "q_cli",
         "claude_code": "claude_code",
         "codex": "codex",
         "cao_installed": "installed",
     }
+    # Merge labels from plugin registry
+    from cli_agent_orchestrator.plugins.registry import get_registry
+
+    provider_source_labels.update(get_registry().get_source_labels())
     for provider, dir_path in agent_dirs.items():
         label = provider_source_labels.get(provider, provider)
         path = Path(dir_path)
@@ -227,7 +231,10 @@ def resolve_provider(agent_profile_name: str, fallback_provider: str) -> str:
         return fallback_provider
 
     if profile.provider:
-        if profile.provider in PROVIDERS:
+        from cli_agent_orchestrator.plugins.registry import get_registry
+
+        all_providers = PROVIDERS + get_registry().get_plugin_types()
+        if profile.provider in all_providers:
             return profile.provider
         else:
             logger.warning(
@@ -235,7 +242,7 @@ def resolve_provider(agent_profile_name: str, fallback_provider: str) -> str:
                 "Valid providers: %s. Falling back to '%s'.",
                 agent_profile_name,
                 profile.provider,
-                PROVIDERS,
+                all_providers,
                 fallback_provider,
             )
 

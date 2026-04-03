@@ -68,7 +68,15 @@ class ProviderManager:
                     terminal_id, tmux_session, tmux_window, agent_profile, allowed_tools
                 )
             else:
-                raise ValueError(f"Unknown provider type: {provider_type}")
+                # Fall back to plugin registry for dynamically registered providers
+                from cli_agent_orchestrator.plugins.registry import get_registry
+
+                provider_class = get_registry().get_provider_class(provider_type)
+                if provider_class is None:
+                    raise ValueError(f"Unknown provider type: {provider_type}")
+                provider = provider_class(
+                    terminal_id, tmux_session, tmux_window, agent_profile, allowed_tools
+                )
 
             # Store in direct mapping
             self._providers[terminal_id] = provider

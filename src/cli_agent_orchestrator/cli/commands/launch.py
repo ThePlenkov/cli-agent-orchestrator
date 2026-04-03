@@ -8,8 +8,8 @@ import requests
 
 from cli_agent_orchestrator.constants import DEFAULT_PROVIDER, PROVIDERS, SERVER_HOST, SERVER_PORT
 
-# Providers that require workspace folder access
-PROVIDERS_REQUIRING_WORKSPACE_ACCESS = {
+# Providers that require workspace folder access (built-in set)
+_BUILTIN_WORKSPACE_PROVIDERS = {
     "claude_code",
     "codex",
     "copilot_cli",
@@ -17,6 +17,20 @@ PROVIDERS_REQUIRING_WORKSPACE_ACCESS = {
     "kimi_cli",
     "kiro_cli",
 }
+
+
+def _all_providers() -> list:
+    """Return all registered provider types (built-in + plugins)."""
+    from cli_agent_orchestrator.plugins.registry import get_registry
+
+    return PROVIDERS + get_registry().get_plugin_types()
+
+
+def _requires_workspace(provider: str) -> bool:
+    """Return True if *provider* requires workspace folder access."""
+    from cli_agent_orchestrator.plugins.registry import get_registry
+
+    return provider in _BUILTIN_WORKSPACE_PROVIDERS or provider in get_registry().get_workspace_providers()
 
 
 @click.command()
@@ -46,9 +60,9 @@ def launch(agents, session_name, headless, provider, allowed_tools, auto_approve
     """Launch cao session with specified agent profile."""
     try:
         # Validate provider
-        if provider not in PROVIDERS:
+        if provider not in _all_providers():
             raise click.ClickException(
-                f"Invalid provider '{provider}'. Available providers: {', '.join(PROVIDERS)}"
+                f"Invalid provider '{provider}'. Available providers: {', '.join(_all_providers())}"
             )
         working_directory = os.path.realpath(os.getcwd())
 
@@ -82,7 +96,7 @@ def launch(agents, session_name, headless, provider, allowed_tools, auto_approve
                 resolved_allowed_tools = resolve_allowed_tools(None, None, None)
 
         # Confirmation / warning prompts
-        if provider in PROVIDERS_REQUIRING_WORKSPACE_ACCESS:
+        if _requires_workspace(provider):
             if yolo:
                 # --yolo: warn but don't block
                 click.echo(click.style("\n[WARNING] --yolo mode enabled", fg="yellow", bold=True))

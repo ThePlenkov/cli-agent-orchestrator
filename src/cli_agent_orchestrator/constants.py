@@ -72,6 +72,10 @@ AGENT_CONTEXT_DIR = CAO_HOME_DIR / "agent-context"
 # Local agent store for custom agent profiles
 LOCAL_AGENT_STORE_DIR = CAO_HOME_DIR / "agent-store"
 
+# Plugin directory for external provider plugins
+# Each subdirectory may contain a plugin.yaml manifest file
+PLUGINS_DIR = CAO_HOME_DIR / "plugins"
+
 # Provider-specific agent directories
 Q_AGENTS_DIR = Path.home() / ".aws" / "amazonq" / "cli-agents"  # Q CLI agents
 KIRO_AGENTS_DIR = Path(os.environ.get("CAO_AGENTS_DIR", str(Path.home() / ".kiro" / "agents")))

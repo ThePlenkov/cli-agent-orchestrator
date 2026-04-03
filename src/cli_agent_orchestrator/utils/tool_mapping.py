@@ -130,7 +130,17 @@ def get_disallowed_tools(provider: str, allowed: List[str]) -> List[str]:
 
     mapping = TOOL_MAPPING.get(provider)
     if not mapping:
+        # Check plugin registry for dynamically registered providers
+        from cli_agent_orchestrator.plugins.registry import get_registry
+
+        mapping = get_registry().get_tool_mappings().get(provider)
+    if not mapping:
         return []
+
+    # Compute the complete set of native tools for this provider
+    all_tools: Set[str] = set()
+    for native_list in mapping.values():
+        all_tools.update(native_list)
 
     # Collect all native tools that are allowed
     allowed_native: Set[str] = set()
@@ -141,8 +151,7 @@ def get_disallowed_tools(provider: str, allowed: List[str]) -> List[str]:
         if cao_tool in mapping:
             allowed_native.update(mapping[cao_tool])
 
-    # Everything in ALL_NATIVE_TOOLS that is NOT allowed should be blocked
-    all_tools = ALL_NATIVE_TOOLS.get(provider, set())
+    # Everything in all_tools that is NOT allowed should be blocked
     disallowed = sorted(all_tools - allowed_native)
     return disallowed
 
