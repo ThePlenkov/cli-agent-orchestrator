@@ -2,6 +2,7 @@
 
 import asyncio
 import fcntl
+import ipaddress
 import json
 import logging
 import os
@@ -54,6 +55,29 @@ from cli_agent_orchestrator.utils.logging import setup_logging
 from cli_agent_orchestrator.utils.terminal import generate_session_name
 
 logger = logging.getLogger(__name__)
+
+# WebSocket trusted-host configuration
+# Extra hosts allowed via environment variable (comma-separated IPs/hostnames)
+_EXTRA_TRUSTED_HOSTS = [
+    h.strip() for h in os.environ.get("CAO_TRUSTED_HOSTS", "").split(",") if h.strip()
+]
+# Default hosts that are always trusted (loopback)
+_DEFAULT_TRUSTED_HOSTS: frozenset[str | None] = frozenset({None, "127.0.0.1", "::1", "localhost"})
+# RFC 1918 private address networks (covers Docker bridge, LAN, VPN ranges)
+_PRIVATE_NETWORKS = (
+    ipaddress.ip_network("10.0.0.0/8"),
+    ipaddress.ip_network("172.16.0.0/12"),
+    ipaddress.ip_network("192.168.0.0/16"),
+)
+
+
+def _is_private_ip(host: str) -> bool:
+    """Return True if *host* is a valid IP address within an RFC 1918 private range."""
+    try:
+        addr = ipaddress.ip_address(host)
+    except ValueError:
+        return False
+    return any(addr in net for net in _PRIVATE_NETWORKS)
 
 
 async def flow_daemon():
@@ -565,11 +589,16 @@ async def terminal_ws(websocket: WebSocket, terminal_id: str):
     It is intended for localhost-only use. Do NOT expose the server to
     untrusted networks (e.g. --host 0.0.0.0) without adding authentication.
     """
-    # Reject connections from non-loopback clients
+    # Reject connections from untrusted clients.
+    # Allow: loopback, RFC 1918 private ranges (e.g. Docker bridge IPs),
+    # and any extra hosts configured via CAO_TRUSTED_HOSTS env var.
     client_host = websocket.client.host if websocket.client else None
-    if client_host not in (None, "127.0.0.1", "::1", "localhost"):
-        await websocket.close(code=4003, reason="WebSocket access is restricted to localhost")
-        return
+    if client_host not in _DEFAULT_TRUSTED_HOSTS and client_host not in _EXTRA_TRUSTED_HOSTS:
+        if client_host is None or not _is_private_ip(client_host):
+            await websocket.close(
+                code=4003, reason="WebSocket access is restricted to localhost/private networks"
+            )
+            return
 
     await websocket.accept()
 

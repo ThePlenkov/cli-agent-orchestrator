@@ -3,7 +3,13 @@
 import pytest
 from fastapi.testclient import TestClient
 
-from cli_agent_orchestrator.api.main import app
+from cli_agent_orchestrator.api.main import (
+    _DEFAULT_TRUSTED_HOSTS,
+    _EXTRA_TRUSTED_HOSTS,
+    _PRIVATE_NETWORKS,
+    _is_private_ip,
+    app,
+)
 
 client = TestClient(app)
 
@@ -209,3 +215,97 @@ class TestLegitimateUseCases:
         """curl http://127.0.0.1:9889/health should work."""
         response = client.get("/health", headers={"Host": "127.0.0.1"})
         assert response.status_code == 200
+
+
+class TestWebSocketHostValidation:
+    """Unit tests for WebSocket trusted-host constants and logic."""
+
+    def test_default_trusted_hosts_contains_loopback(self):
+        """Default trusted set must include None, 127.0.0.1, ::1, and localhost."""
+        assert None in _DEFAULT_TRUSTED_HOSTS
+        assert "127.0.0.1" in _DEFAULT_TRUSTED_HOSTS
+        assert "::1" in _DEFAULT_TRUSTED_HOSTS
+        assert "localhost" in _DEFAULT_TRUSTED_HOSTS
+
+    def test_private_networks_cover_docker_bridge(self):
+        """172.16.0.0/12 must be in private networks to cover Docker bridge IPs."""
+        import ipaddress
+
+        assert ipaddress.ip_network("172.16.0.0/12") in _PRIVATE_NETWORKS
+
+    def test_private_networks_cover_rfc1918(self):
+        """All three RFC 1918 networks must be present."""
+        import ipaddress
+
+        assert ipaddress.ip_network("10.0.0.0/8") in _PRIVATE_NETWORKS
+        assert ipaddress.ip_network("192.168.0.0/16") in _PRIVATE_NETWORKS
+
+    def _is_allowed(self, host):
+        """Replicate the WebSocket allow-check from main.py."""
+        if host in _DEFAULT_TRUSTED_HOSTS or host in _EXTRA_TRUSTED_HOSTS:
+            return True
+        return host is not None and _is_private_ip(host)
+
+    def test_loopback_ipv4_allowed(self):
+        assert self._is_allowed("127.0.0.1")
+
+    def test_loopback_ipv6_allowed(self):
+        assert self._is_allowed("::1")
+
+    def test_localhost_string_allowed(self):
+        assert self._is_allowed("localhost")
+
+    def test_none_client_allowed(self):
+        """None client host (e.g. Unix socket) must be allowed."""
+        assert self._is_allowed(None)
+
+    def test_docker_bridge_ip_allowed(self):
+        """172.17.0.1 (typical Docker bridge) must be allowed."""
+        assert self._is_allowed("172.17.0.1")
+
+    def test_172_16_boundary_allowed(self):
+        """172.16.0.1 (start of RFC 1918 172.16.0.0/12 range) must be allowed."""
+        assert self._is_allowed("172.16.0.1")
+
+    def test_172_31_boundary_allowed(self):
+        """172.31.255.254 (end of RFC 1918 172.16.0.0/12 range) must be allowed."""
+        assert self._is_allowed("172.31.255.254")
+
+    def test_172_32_outside_rfc1918_rejected(self):
+        """172.32.0.1 is outside RFC 1918 (172.16.0.0/12) and must be rejected."""
+        assert not self._is_allowed("172.32.0.1")
+
+    def test_172_0_outside_rfc1918_rejected(self):
+        """172.0.0.1 is outside RFC 1918 (172.16.0.0/12) and must be rejected."""
+        assert not self._is_allowed("172.0.0.1")
+
+    def test_10_dot_network_allowed(self):
+        """10.x.x.x private range must be allowed."""
+        assert self._is_allowed("10.0.0.1")
+
+    def test_192_168_network_allowed(self):
+        """192.168.x.x private range must be allowed."""
+        assert self._is_allowed("192.168.1.1")
+
+    def test_public_ip_rejected(self):
+        """Public IPs (e.g. 8.8.8.8) must NOT be allowed."""
+        assert not self._is_allowed("8.8.8.8")
+
+    def test_another_public_ip_rejected(self):
+        """Another public IP must NOT be allowed."""
+        assert not self._is_allowed("1.1.1.1")
+
+    def test_cao_trusted_hosts_env_var(self, monkeypatch):
+        """IPs listed in CAO_TRUSTED_HOSTS env var must be allowed."""
+        import importlib
+
+        import cli_agent_orchestrator.api.main as main_module
+
+        monkeypatch.setenv("CAO_TRUSTED_HOSTS", "1.2.3.4,5.6.7.8")
+        # Reload the module-level list to pick up the env change
+        importlib.reload(main_module)
+        extra = main_module._EXTRA_TRUSTED_HOSTS
+        assert "1.2.3.4" in extra
+        assert "5.6.7.8" in extra
+        # Restore original state after test
+        importlib.reload(main_module)
