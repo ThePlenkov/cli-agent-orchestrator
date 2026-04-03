@@ -168,9 +168,7 @@ class TestPluginRegistryMalformedManifest:
     def test_skips_missing_provider_type(self, tmp_path: Path):
         import yaml
 
-        import yaml as _yaml
-
-        data = _yaml.safe_load(_VALID_YAML)
+        data = yaml.safe_load(_VALID_YAML)
         del data["provider"]["type"]
         _write_plugin(tmp_path, "no_type", yaml.dump(data))
         registry = PluginRegistry(tmp_path)
@@ -179,9 +177,7 @@ class TestPluginRegistryMalformedManifest:
     def test_skips_missing_provider_class(self, tmp_path: Path):
         import yaml
 
-        import yaml as _yaml
-
-        data = _yaml.safe_load(_VALID_YAML)
+        data = yaml.safe_load(_VALID_YAML)
         del data["provider"]["class"]
         _write_plugin(tmp_path, "no_class", yaml.dump(data))
         registry = PluginRegistry(tmp_path)
