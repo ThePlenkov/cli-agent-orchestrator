@@ -510,3 +510,80 @@ class TestCrossProviderResolution:
 
             assert response.status_code == 500
             assert "Failed to create terminal" in response.json()["detail"]
+
+
+class TestPtyTermEnv:
+    """Tests that the tmux attach-session Popen call uses the correct TERM env var."""
+
+    @pytest.fixture
+    def localhost_client(self):
+        """TestClient that presents as a 127.0.0.1 peer to pass the loopback check."""
+        from fastapi.testclient import TestClient
+
+        return TestClient(app, client=("127.0.0.1", 50000))
+
+    def _capture_popen_env(self, mock_popen):
+        """Return the env dict passed to the most recent Popen call."""
+        assert mock_popen.called, "Popen was never called"
+        call_kwargs = mock_popen.call_args.kwargs
+        return call_kwargs.get("env")
+
+    def _run_ws_stream(self, client, terminal_id="abcd1234"):
+        """Drive the WebSocket terminal stream endpoint enough to trigger Popen.
+
+        The endpoint validates the DB metadata first; we mock that out and
+        also mock pty/os/fcntl so the handler doesn't need real file
+        descriptors.
+        """
+        with (
+            patch("cli_agent_orchestrator.api.main.get_terminal_metadata") as mock_meta,
+            patch("cli_agent_orchestrator.api.main.pty.openpty", return_value=(10, 11)),
+            patch("cli_agent_orchestrator.api.main.fcntl.ioctl"),
+            patch("cli_agent_orchestrator.api.main.subprocess.Popen") as mock_popen,
+            patch("cli_agent_orchestrator.api.main.os.close"),
+            patch("cli_agent_orchestrator.api.main.fcntl.fcntl"),
+            patch("cli_agent_orchestrator.api.main.os.read", return_value=b""),
+        ):
+            mock_meta.return_value = {
+                "tmux_session": "test-session",
+                "tmux_window": "test-window",
+            }
+            mock_proc = MagicMock()
+            mock_proc.poll.return_value = 0
+            mock_proc.pid = 999
+            mock_popen.return_value = mock_proc
+
+            try:
+                with client.websocket_connect(
+                    f"/terminals/{terminal_id}/ws",
+                    headers={"host": "localhost"},
+                ):
+                    pass
+            except Exception:
+                pass
+
+            return mock_popen
+
+    def test_term_defaults_to_xterm_256color_when_unset(self, localhost_client):
+        """When TERM is not set in the environment, Popen should use xterm-256color."""
+        import os as _os
+
+        env_without_term = {k: v for k, v in _os.environ.items() if k != "TERM"}
+        with patch("cli_agent_orchestrator.api.main.os.environ", env_without_term):
+            mock_popen = self._run_ws_stream(localhost_client)
+            env = self._capture_popen_env(mock_popen)
+
+        assert env is not None, "env should be passed to Popen"
+        assert env.get("TERM") == "xterm-256color"
+
+    def test_term_preserved_when_already_set(self, localhost_client):
+        """When TERM is already set in the environment, it should not be overridden."""
+        import os as _os
+
+        env_with_term = dict(_os.environ, TERM="screen-256color")
+        with patch("cli_agent_orchestrator.api.main.os.environ", env_with_term):
+            mock_popen = self._run_ws_stream(localhost_client)
+            env = self._capture_popen_env(mock_popen)
+
+        assert env is not None, "env should be passed to Popen"
+        assert env.get("TERM") == "screen-256color"

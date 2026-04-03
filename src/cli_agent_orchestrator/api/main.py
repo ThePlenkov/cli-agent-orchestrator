@@ -589,6 +589,9 @@ async def terminal_ws(websocket: WebSocket, terminal_id: str):
     fcntl.ioctl(slave_fd, termios.TIOCSWINSZ, winsize)
 
     # Start tmux attach inside the PTY
+    pty_env = os.environ.copy()
+    pty_env.setdefault("TERM", "xterm-256color")
+
     proc = subprocess.Popen(
         ["tmux", "attach-session", "-t", f"{session_name}:{window_name}"],
         stdin=slave_fd,
@@ -596,6 +599,7 @@ async def terminal_ws(websocket: WebSocket, terminal_id: str):
         stderr=slave_fd,
         close_fds=True,
         preexec_fn=os.setsid,
+        env=pty_env,
     )
     os.close(slave_fd)
 
