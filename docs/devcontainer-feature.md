@@ -53,6 +53,81 @@ Use directly from the repository checkout:
 
 If you enable `webui: true`, ensure `npm` is available in the container (for example by adding `ghcr.io/devcontainers/features/node:1`).
 
+## Common scenarios
+
+These examples are based on standard [devcontainer](https://containers.dev/) configuration patterns. For option semantics, see the [Options](#options) section above.
+
+### 1) Minimal install
+
+Use this for a quick CAO install in Codespaces or VS Code "Reopen in Container" flows.
+
+```json
+{
+  "image": "mcr.microsoft.com/devcontainers/base:ubuntu",
+  "features": {
+    "ghcr.io/devcontainers/features/python:1": {},
+    "ghcr.io/awslabs/cli-agent-orchestrator/cao:2": {}
+  }
+}
+```
+
+### 2) Server with web UI on container start
+
+Use this when you want the container to start CAO server automatically with web UI enabled.
+
+```json
+{
+  "image": "mcr.microsoft.com/devcontainers/base:ubuntu",
+  "features": {
+    "ghcr.io/devcontainers/features/python:1": {},
+    "ghcr.io/devcontainers/features/node:1": {},
+    "ghcr.io/awslabs/cli-agent-orchestrator/cao:2": {
+      "webui": true,
+      "autostart": true,
+      "port": "9889"
+    }
+  },
+  "forwardPorts": [9889]
+}
+```
+
+### 3) Multi-feature stack
+
+Use this when combining CAO with other devcontainer features.
+
+```json
+{
+  "image": "mcr.microsoft.com/devcontainers/base:ubuntu",
+  "features": {
+    "ghcr.io/devcontainers/features/python:1": {},
+    "ghcr.io/devcontainers/features/node:1": {},
+    "ghcr.io/devcontainers/features/docker-in-docker:2": {},
+    "ghcr.io/awslabs/cli-agent-orchestrator/cao:2": {
+      "webui": true
+    }
+  }
+}
+```
+
+`webui: true` requires `ghcr.io/devcontainers/features/node:1`; feature ordering is handled by `installsAfter`.
+
+### 4) Pinned version / internal fork
+
+Use this for reproducible CI builds or when installing from an internal mirror.
+
+```json
+{
+  "features": {
+    "ghcr.io/awslabs/cli-agent-orchestrator/cao:2": {
+      "version": "v2.1.1"
+    }
+  },
+  "remoteEnv": {
+    "REPO_URL": "https://github.example.com/internal/cli-agent-orchestrator.git"
+  }
+}
+```
+
 ## Validation
 
 ### Mandatory smoke checks
