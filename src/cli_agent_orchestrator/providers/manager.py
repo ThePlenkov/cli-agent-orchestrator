@@ -10,6 +10,7 @@ from cli_agent_orchestrator.providers.claude_code import ClaudeCodeProvider
 from cli_agent_orchestrator.providers.codex import CodexProvider
 from cli_agent_orchestrator.providers.copilot_cli import CopilotCliProvider
 from cli_agent_orchestrator.providers.cursor_cli import CursorCliProvider
+from cli_agent_orchestrator.providers.devin_cli import DevinCliProvider
 from cli_agent_orchestrator.providers.gemini_cli import GeminiCliProvider
 from cli_agent_orchestrator.providers.hermes import HermesProvider
 from cli_agent_orchestrator.providers.kimi_cli import KimiCliProvider
@@ -131,6 +132,15 @@ class ProviderManager:
                     agent_profile,
                     allowed_tools,
                     model=model,
+                    skill_prompt=skill_prompt,
+                )
+            elif provider_type == ProviderType.DEVIN_CLI.value:
+                provider = DevinCliProvider(
+                    terminal_id,
+                    tmux_session,
+                    tmux_window,
+                    agent_profile,
+                    allowed_tools,
                     skill_prompt=skill_prompt,
                 )
             else:
