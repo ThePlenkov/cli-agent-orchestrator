@@ -52,7 +52,7 @@ TOOL_MAPPING: Dict[str, Dict[str, List[str]]] = {
         "execute_bash": ["Bash"],
         "fs_read": ["Read"],
         "fs_write": ["Write"],
-        "fs_*": ["Read", "Write", "Bash"],
+        "fs_*": ["Read", "Write"],
     },
     "gemini_cli": {
         "execute_bash": ["run_shell_command"],
